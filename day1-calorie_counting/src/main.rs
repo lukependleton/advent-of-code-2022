@@ -1,29 +1,26 @@
-use std::fs;
-
 fn main() {
-    // TODO: paths...make them relative to the project directory (or this file) - not where the program is called from
-    // TODO: if we did want to do that, I think we would need to do something like this:
-    //  - https://doc.rust-lang.org/std/macro.include_str.html
+    // Read in the input food inventory from the question trimming any surrounding whitespace
+    let food_inventory = include_str!("../inputs/question").trim();
 
     // * Part One
     // Find the largest calorie count among the elves
-    let largest_calorie_count = part_one("inputs/question");
+    let largest_calorie_count = part_one(food_inventory);
     println!("Part One:\n  The largest calorie count is: {largest_calorie_count}");
 
     // * Part Two
     // Find the sum of the calorie counts of the top three elves' counts
-    let top_three_largest_total = part_two("inputs/question");
+    let top_three_largest_total = part_two(food_inventory);
     println!("Part Two:\n  The sum of the top three largest calorie counts is: {top_three_largest_total}");
 }
 
 
 // region: Helpers
 
-fn get_elf_calorie_counts_from_string(inventory: &str) -> Vec<u32> {
+fn get_elf_calorie_counts_from_str(inventory: &str) -> Vec<u32> {
     // Split full list into each elf's list by splitting on the new lines
     let elf_inventory_list = inventory.split("\n\n");
 
-    // For each, find their calorie sum
+    // For each elf, find their calorie sum
     elf_inventory_list
         .map(
             |elf_inventory|
@@ -39,31 +36,24 @@ fn get_elf_calorie_counts_from_string(inventory: &str) -> Vec<u32> {
 // endregion
 
 
-// * Part One
-
-// region: Day 1 - Part One
+// region: Part One
 
 #[test]
 fn part_one_example_test() {
+    // Read in the example food inventory trimming any surrounding whitespace
+    let example_food_inventory = include_str!("../inputs/example").trim();
+
     // Find the largest calorie count among the elves in the example input from the question
-    let largest_calorie_count = part_one("inputs/example");
+    let largest_calorie_count = part_one(example_food_inventory);
 
     // Check if the example yields the same result as the question describes
     assert_eq!(largest_calorie_count, 24000);
 }
 
-fn part_one(filepath: &str) -> u32 {
-    // Read input from file
-    // TODO: potentially trim the input file to remove whitespace like newlines from the ends
-    let food_inventory = fs::read_to_string(filepath).expect("Failed to read in the file");
-
-    // Find the largest calorie count among the elves
-    get_largest_elf_calorie_count(food_inventory.trim())
-}
-
-fn get_largest_elf_calorie_count(inventory: &str) -> u32 {
+/// Find the largest calorie count among the elves given the `food_inventory` of all the elves
+fn part_one(food_inventory: &str) -> u32 {
     // Get the total calorie counts of each elf
-    let calorie_counts = get_elf_calorie_counts_from_string(inventory);
+    let calorie_counts = get_elf_calorie_counts_from_str(food_inventory);
 
     // Return the biggest, panicking if it couldn't find one
     *calorie_counts.iter().max().expect("Couldn't find a max calorie count")
@@ -72,30 +62,24 @@ fn get_largest_elf_calorie_count(inventory: &str) -> u32 {
 // endregion
 
 
-// * Part Two
-
-// region: Day 1 - Part Two
+// region: Part Two
 
 #[test]
 fn part_two_example_test() {
+    // Read in the example food inventory trimming any surrounding whitespace
+    let example_food_inventory = include_str!("../inputs/example").trim();
+
     // Find the sum of the calorie counts of the top three elves' counts in the example input from the question
-    let top_three_largest_total = part_two("inputs/example");
+    let top_three_largest_total = part_two(example_food_inventory);
 
     // Check if the example yields the same result as the question describes
     assert_eq!(top_three_largest_total, 45000);
 }
 
-fn part_two(filepath: &str) -> u32 {
-    // Read input from file
-    let food_inventory = fs::read_to_string(filepath).expect("Failed to read in the file");
-
-    // Find the sum of the calorie counts of the top three elves' counts
-    get_top_three_calorie_counts_total(food_inventory.trim())
-}
-
-fn get_top_three_calorie_counts_total(inventory: &str) -> u32 {
+/// Find the sum of the calorie counts of the top three elves' counts given the `food_inventory` of all the elves
+fn part_two(food_inventory: &str) -> u32 {
     // Get the total calorie counts of each elf
-    let calorie_counts = get_elf_calorie_counts_from_string(inventory);
+    let calorie_counts = get_elf_calorie_counts_from_str(food_inventory);
 
     // Find the sum of the top three counts in the vector
     let top_three = calorie_counts.iter().fold(
