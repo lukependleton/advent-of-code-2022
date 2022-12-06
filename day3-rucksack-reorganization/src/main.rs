@@ -126,18 +126,29 @@ fn part_two(rucksack_items: &str) -> u32 {
     let grouped_items_priorities = rucksack_item_priorities
         .chunks(3)
         .map(|elf_group| {
-            // Convert the elf vectors into hashsets for faster contains-checking
-            let mut elf_group_set_iter = elf_group
+            // Convert the elf vectors into hashsets for faster intersect-checking/contains-checking
+            let elf_group_set_iter = elf_group
                 .iter()
                 .map(|elf_vec| {
                     elf_vec.iter().copied().collect::<HashSet<u32>>()
                 });
 
-            // Get the intersection of all the elves in the iter by filtering out the items that aren't contained in the other elves' sets
+            // Reduce intersection approach:
+            //   Get the intersection of all the elves in the iter by performing a reduce accross the sets with the intersection as the accumulator
+            let intersection = elf_group_set_iter
+                .reduce(|accum, elem| {
+                    accum.intersection(&elem).copied().collect::<HashSet<u32>>()
+                })
+                .expect("This elf group has no elves - invalid input");
+
+            // Alternative retains approach:
+            //   Get the intersection of all the elves in the iter by filtering out the items that aren't contained in the other elves' sets
+            /*
             let mut intersection = elf_group_set_iter.next().expect("This elf group has no elves - invalid input");
             for other_elf in elf_group_set_iter {
                 intersection.retain(|item| other_elf.contains(item));
             }
+            */
 
             // Return the intersection of all three elves' items
             intersection.iter().next().expect("No items shared among elves - invalid input").clone()
