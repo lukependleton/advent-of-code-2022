@@ -87,7 +87,7 @@ fn part_one(rucksack_items: &str) -> u32 {
             // Get the set intersection of the two compartments of the bag
             let compartment_1 = compartment_1.to_owned().into_iter().collect::<HashSet<u32>>();
             let compartment_2 = compartment_2.to_owned().into_iter().collect::<HashSet<u32>>();
-            let intersection = compartment_1.intersection(&compartment_2);
+            let intersection = &compartment_1 & &compartment_2;
 
             // Only check the first intersection, because the input is supposed to only have one
             intersection
@@ -137,7 +137,8 @@ fn part_two(rucksack_items: &str) -> u32 {
             //   Get the intersection of all the elves in the iter by performing a reduce accross the sets with the intersection as the accumulator
             let intersection = elf_group_set_iter
                 .reduce(|accum, elem| {
-                    accum.intersection(&elem).copied().collect::<HashSet<u32>>()
+                    // Use the cooler syntax for set intersection using the bitand operator
+                    &accum & &elem
                 })
                 .expect("This elf group has no elves - invalid input");
 
