@@ -23,15 +23,11 @@ fn get_strategy_guide_per_round(strategy_guide: &str) -> Vec<(char, char)> {
     strategy_guide
         .split('\n')
         .map(|line| {
-            // This is a kinda weird way to do this, but it works enough for the depth that I need to go for this challenge haha
-            let (first_instruction, second_instruction) = line
-                .split_once(' ')
-                .expect("Missing a space to separate the columns -> bad input");
-            let first_instruction = first_instruction.chars().next().expect("Missing a character in the first column -> bad input");
-            let second_instruction = second_instruction.chars().next().expect("Missing a character in the second column -> bad input");
-
-            // Return the pair of characters for the first and second instructions
-            (first_instruction, second_instruction)
+            let mut line_iter = line.chars();
+            match (line_iter.next(), line_iter.next(), line_iter.next()) {
+                (Some(first_instruction), Some(' '), Some(second_instruction)) => (first_instruction, second_instruction),
+                (_, _, _) => panic!("The line '{line}' of the strategy guide has a bad format")
+            }
         })
         .collect::<Vec<(char, char)>>()
 }
