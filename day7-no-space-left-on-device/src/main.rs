@@ -5,31 +5,49 @@ fn main() {
     let question_terminal_output = include_str!("../inputs/question").trim();
 
     // * Part One
-    // <Whatever part one is doing>
-    let part_one_result = part_one(question_terminal_output);
-    println!("Part One:\n  The result is: {part_one_result}");
+    // Find the total size of the directories larger than 100000 in the filesystem from the question
+    let total_size_of_large_diretories = part_one(question_terminal_output);
+    println!("Part One:\n  The result is: {total_size_of_large_diretories}");
 
     // * Part Two
-    // <Whatever part two is doing>
-    let part_two_result = part_two(question_terminal_output);
-    println!("Part Two:\n  The result is: {part_two_result}");
+    // Find the smallest possible directory that will give us enough space to update given the input from the question
+    let size_of_directory_to_remove = part_two(question_terminal_output);
+    println!("Part Two:\n  The result is: {size_of_directory_to_remove}");
 }
 
-// region: Helpers
+
+// region: Terminal + Filesystem Types
 
 #[derive(Debug, PartialEq)]
 enum FilesystemObject {
-    // TODO: simplify this process by making Dir its own type so it can be passed around more specifically
-    // - not needing to reconfirm whether something is a Dir vs a File
-    Dir {
-        name: String,
-        children: Vec<FilesystemObject>,
-    },
+    Dir(Directory),
     File {
         name: String,
         size: u32,
     },
 }
+
+#[derive(Debug, PartialEq)]
+struct Directory {
+    name: String,
+    children: Vec<FilesystemObject>,
+}
+
+#[derive(Debug, PartialEq)]
+enum Command {
+    Cd(String),
+    Ls,
+}
+
+#[derive(Debug, PartialEq)]
+enum TerminalLine {
+    FilesystemObject(FilesystemObject),
+    Command(Command),
+}
+
+// endregion
+
+// region: Input Parsing
 
 impl FromStr for FilesystemObject {
     type Err = String;
@@ -42,7 +60,7 @@ impl FromStr for FilesystemObject {
             .split_once(' ')
             .ok_or("The ls output is malformed - incorrect number of spaces".to_owned())? {
             ("dir", dirname) => Ok(
-                FilesystemObject::Dir { name: dirname.to_string(), children: Vec::new() }
+                FilesystemObject::Dir(Directory { name: dirname.to_string(), children: Vec::new() })
             ),
             (size, filename) => Ok(
                 FilesystemObject::File {
@@ -52,12 +70,6 @@ impl FromStr for FilesystemObject {
             )
         }
     }
-}
-
-#[derive(Debug, PartialEq)]
-enum Command {
-    Cd(String),
-    Ls,
 }
 
 impl FromStr for Command {
@@ -74,12 +86,6 @@ impl FromStr for Command {
             _ => Err("Invalid command '{command_str}' in input".to_string()),
         }
     }
-}
-
-#[derive(Debug, PartialEq)]
-enum TerminalLine {
-    FilesystemObject(FilesystemObject),
-    Command(Command),
 }
 
 impl FromStr for TerminalLine {
@@ -102,6 +108,7 @@ impl FromStr for TerminalLine {
     }
 }
 
+/// Given the `terminal_output` str, parse each line into their respective TerminalLine
 fn parse_terminal_output(terminal_output: &str) -> Vec<TerminalLine> {
     terminal_output
         .split('\n')
@@ -109,45 +116,42 @@ fn parse_terminal_output(terminal_output: &str) -> Vec<TerminalLine> {
         .collect::<Vec<TerminalLine>>()
 }
 
-fn get_dir<'a>(root: &'a mut FilesystemObject, path: &str) -> &'a mut FilesystemObject {
+// endregion
+
+// region: Helpers
+
+fn get_dir<'a>(root: &'a mut Directory, path: &str) -> &'a mut Directory {
     let mut path_iter = path.split('/');
     // Handle preceeding slash of a path
     path_iter.next();
 
     path_iter
-        .fold(root, |current_dir, path_level| {
+        .fold(root, |current_dir: &mut Directory, path_level| {
+            // "Base case" if this is the end of the path
             if path_level == "" {
                 return current_dir;
             }
             // Find the directory with the path_level name inside current dir
-            // If it doesn't exist, panic
-            let FilesystemObject::Dir{
-                name: _,
-                children
-            } = current_dir else {
-                panic!("This should be a directory, but it wasn't");
-            };
-
-            children
+            current_dir.children
                 .iter_mut()
-                .find(|filesystem_object| {
-                    if let FilesystemObject::Dir { name, children: _ } = filesystem_object.clone() {
-                        name == &path_level.to_string()
-                    }
-                    else {
-                        false
+                .find_map(|filesystem_object| {
+                    match filesystem_object {
+                        FilesystemObject::Dir(dir) if dir.name == path_level.to_string() => Some(dir),
+                        _ => None,
                     }
                 })
                 .expect("Failed to find directory of the given path...")
         })
 }
 
-fn construct_filesystem(terminal_lines: Vec<TerminalLine>) -> FilesystemObject {
+/// Constructs the root directory filesystem
+fn construct_filesystem(terminal_lines: Vec<TerminalLine>) -> Directory {
     let mut terminal_lines_iter = terminal_lines.into_iter();
+
     // Create the root element of the filesystem
     let mut root = if Some(TerminalLine::Command(Command::Cd("/".to_string()))) == terminal_lines_iter.next() {
         // The first command is changing to the root directory
-        FilesystemObject::Dir {
+        Directory {
             name: "/".to_string(),
             children: Vec::new(),
         }
@@ -155,6 +159,7 @@ fn construct_filesystem(terminal_lines: Vec<TerminalLine>) -> FilesystemObject {
     else {
         panic!("The first line was not moving to the root directory. I feel like it has to be.")
     };
+
     // Set the initial working directory to root
     let mut working_dir_path = "/".to_string();
 
@@ -164,19 +169,11 @@ fn construct_filesystem(terminal_lines: Vec<TerminalLine>) -> FilesystemObject {
         match line {
             TerminalLine::FilesystemObject(filesystem_object) => {
                 // Seeing a filesystem object means it is an element of the current directory
-                // println!("Current filesystem is:\n{:#?}", root);
-                // println!("\nAttempting to find path: {working_dir_path}");
                 // Get the current directory
-                let FilesystemObject::Dir {
-                    name: _,
-                    children
-                } = get_dir(&mut root, &working_dir_path)
-                else {
-                    panic!("Shouldn't get a file back from get_dir...")
-                };
+                let current_dir = get_dir(&mut root, &working_dir_path);
 
                 // Add it to the current directory
-                children.push(filesystem_object);
+                current_dir.children.push(filesystem_object);
             },
             TerminalLine::Command(command) => match command {
                 Command::Cd(relative_path) => {
@@ -185,7 +182,7 @@ fn construct_filesystem(terminal_lines: Vec<TerminalLine>) -> FilesystemObject {
                         working_dir_path = working_dir_path[..working_dir_path.rfind("/").unwrap()].to_string();
                     }
                     else {
-                        // Add one level to the working_dir_path
+                        // Add one level to the working_dir_path handling the case of a trailing slash in the path
                         working_dir_path = format!(
                             "{working_dir_path}{}{relative_path}",
                             if working_dir_path.ends_with('/') { "" } else { "/" });
@@ -200,7 +197,28 @@ fn construct_filesystem(terminal_lines: Vec<TerminalLine>) -> FilesystemObject {
     root
 }
 
-fn determine_directory_sizes_from_terminal_output(terminal_output: &str) -> Vec<(String, u32)> {
+/// Given a filesystem directory, calculate and record the sizes of the directories in the `directory_sizes` vec
+fn calculate_directory_sizes(directory: &Directory, directory_sizes: &mut Vec<u32>) -> u32 {
+    // Loop through its children, recursively finding the size of each, and summing up the total
+    let total_size = directory.children
+        .iter()
+        .map(|filesystem_object| {
+            match filesystem_object {
+                FilesystemObject::Dir(subdirectory) => calculate_directory_sizes(subdirectory, directory_sizes),
+                FilesystemObject::File { name: _, size } => *size,
+            }
+        })
+        .sum();
+
+    // Record the size of this directory in the directory_sizes vec
+    directory_sizes.push(total_size);
+
+    // Return it so that its parent can use it too
+    total_size
+}
+
+/// Given the terminal output str, parse the lines, constructing the resulting filesystem, and calulcate the directory sizes within that filesystem
+fn determine_directory_sizes_from_terminal_output(terminal_output: &str) -> (Vec<u32>, u32) {
     // Parse the output of the terminal into more helpful lines
     let terminal_lines = parse_terminal_output(terminal_output);
 
@@ -211,11 +229,11 @@ fn determine_directory_sizes_from_terminal_output(terminal_output: &str) -> Vec<
     // println!("The constructed filesystem is:\n{:#?}", filesystem);
 
     // Get the directory sizes list
-    let mut directory_sizes = Vec::<(String, u32)>::new();
-    get_dir_sizes(&filesystem, &mut directory_sizes);
+    let mut directory_sizes = Vec::<u32>::new();
+    let total_size = calculate_directory_sizes(&filesystem, &mut directory_sizes);
 
     // Return the directory sizes
-    directory_sizes
+    (directory_sizes, total_size)
 }
 
 // endregion
@@ -227,49 +245,23 @@ fn part_one_example_test() {
     // Read in the example terminal output trimming any surrounding whitespace
     let example_terminal_output = include_str!("../inputs/example").trim();
 
-    // <Part One goal> in the example input from the question
-    let part_one_result = part_one(example_terminal_output);
+    // Find the total size of the directories larger than 100000 in the example filesystem from the question
+    let total_size_of_large_diretories = part_one(example_terminal_output);
 
     // Check if the example yields the same result as the question describes
-    assert_eq!(part_one_result, 95437);
+    assert_eq!(total_size_of_large_diretories, 95437);
 }
 
-/// <Part One goal>
+/// Find the total size of the directories in the filesystem larger than 100000
 fn part_one(terminal_output: &str) -> u32 {
     // Parse the terminal output, construct the filesystem from it, and calculate the directory sizes... 
-    let directory_sizes = determine_directory_sizes_from_terminal_output(terminal_output);
+    let (directory_sizes, _) = determine_directory_sizes_from_terminal_output(terminal_output);
 
-    // Filter the directories by those less than 10000 and sum them up
+    // Filter the directories by those less than 10000 and sum up their sizes
     directory_sizes
         .iter()
-        .map(|(_, size)| size)
         .filter(|size| **size < 100000)
         .sum()
-}
-
-/// Given a filesystem dir and 
-fn get_dir_sizes(dir: &FilesystemObject, directory_sizes: &mut Vec<(String, u32)>) -> u32 {
-    // Check that it's a directory
-    let FilesystemObject::Dir { name, children } = dir else {
-        panic!("The object called as a directory is not actually a directory");
-    };
-    // Loop through its children
-    let size = children
-        .iter()
-        .map(|filesystem_object| {
-            // 
-            match filesystem_object {
-                FilesystemObject::Dir { name: _, children: _ } => get_dir_sizes(filesystem_object, directory_sizes),
-                FilesystemObject::File { name: _, size } => *size,
-            }
-        })
-        .sum();
-
-    // Record the size of this directory in directory_sizes
-    directory_sizes.push((name.clone(), size));
-
-    // Return it so that its parents can use it too
-    size
 }
 
 // endregion
@@ -281,44 +273,27 @@ fn part_two_example_test() {
     // Read in the example terminal output trimming any surrounding whitespace
     let example_terminal_output = include_str!("../inputs/example").trim();
 
-    // <Part Two goal> in the example input from the question
-    let part_two_result = part_two(example_terminal_output);
+    // Find the smallest possible directory that will give us enough space to update given the example input from the question
+    let size_of_directory_to_remove = part_two(example_terminal_output);
 
     // Check if the example yields the same result as the question describes
-    assert_eq!(part_two_result, 24933642);
+    assert_eq!(size_of_directory_to_remove, 24933642);
 }
 
-/// <Part Two goal>
+/// Find the smallest possible directory size that will give us enough space to update if we were to remove it
 fn part_two(terminal_output: &str) -> u32 {
     // Parse the terminal output, construct the filesystem from it, and calculate the directory sizes... 
-    let directory_sizes = determine_directory_sizes_from_terminal_output(terminal_output);
-
-    // Print the dir sizes
-    // println!("Dir sizes: {:?}", directory_sizes);
-
-    // Get the total size of the filesystem
-    let total_size = directory_sizes
-        .iter()
-        .find_map(|(name, size)| {
-            if name == "/" {
-                Some(size)
-            }
-            else {
-                None
-            }
-        })
-        .expect("Missing the root directory from list of directory sizes")
-        .clone();
+    let (directory_sizes, total_size) = determine_directory_sizes_from_terminal_output(terminal_output);
 
     // Determine the amount of space needed to be freed up
     //   space_needed_to_be_freed = total needed - (total space - current space)
     //   space_needed_to_be_freed = 30000000 - (70000000 - total_size);
     let space_needed_to_be_freed = total_size - 40000000;
 
-    // Find the minimum directory size that is greater
+    // Find the minimum directory size that is greater than the amount of space needed to be freed up
     directory_sizes
         .iter()
-        .map(|(_, size)| *size)
+        .cloned()
         .filter(|size| *size > space_needed_to_be_freed)
         .min()
         .unwrap()
