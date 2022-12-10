@@ -1,8 +1,8 @@
-use std::{collections::HashSet, iter, ops};
+use std::{collections::HashSet, iter, ops, thread, time::Duration, io::{stdin, Read}};
 
 fn main() {
     // Read in the rope motions from the question trimming any surrounding whitespace
-    let question_rope_motions = include_str!("../inputs/question").trim();
+    let question_rope_motions = include_str!("../inputs/larger_example").trim();
 
     // * Part One
     // Determine the number of unique places the tail of the rope of length 2 visited in the input from the question
@@ -13,6 +13,14 @@ fn main() {
     // Determine the number of unique places the tail of the rope of length 10 visited in the input from the question
     let num_places_visited = part_two(question_rope_motions);
     println!("Part Two:\n  The number of unique locations the tail visited for the rope of length 10 is: {num_places_visited}");
+
+    // Pause and wait for input from the user
+    println!("\nDo you want to see the rope motions animated?");
+    pause();
+    // TODO: prompt how long the rope should be
+
+    // Animate it!
+    animate_rope_movements(question_rope_motions);
 }
 
 // region: Helpers
@@ -82,7 +90,7 @@ fn parse_rope_motions(rope_motions: &str) -> Vec<Position> {
 }
 
 /// Simulate the movement of a rope of the given length following the given `rope_motion_steps`, returning the set of positions the tail visited throughout the course of it
-fn simulate_rope_movement(rope_motion_steps: Vec<Position>, rope_len: usize) -> HashSet<Position> {
+fn simulate_rope_movement(rope_motion_steps: Vec<Position>, rope_len: usize, mut animate_record: Option<&mut Vec<Vec<Position>>>) -> HashSet<Position> {
     // Create a set to hold the uniqe postitions that the tail has visited
     let mut tail_positions_visited = HashSet::<Position>::new();
 
@@ -131,6 +139,11 @@ fn simulate_rope_movement(rope_motion_steps: Vec<Position>, rope_len: usize) -> 
 
         // Record the position of the tail (in a set to effectively filter out duplicates)
         tail_positions_visited.insert(tail_position);
+
+        // If animate_record provided, record the positions so they can be animated after
+        if let Some(animate_record) = animate_record.as_mut() {
+            animate_record.push([vec![head_pos], trail_positions.clone()].concat())
+        }
     }
 
     // Return the tail_positions_visited upon completing simulating all the steps
@@ -159,7 +172,7 @@ fn part_one(rope_motions: &str) -> usize {
     let rope_motion_steps = parse_rope_motions(rope_motions);
 
     // Determine the number of unique places the tail of the rope of length 2 visited in the example input from the question
-    let tail_positions_visited = simulate_rope_movement(rope_motion_steps, 2);
+    let tail_positions_visited = simulate_rope_movement(rope_motion_steps, 2, None);
 
     // Return the number of unique places that the tail visited
     tail_positions_visited.len()
@@ -196,10 +209,84 @@ fn part_two(rope_motions: &str) -> usize {
     let rope_motion_steps = parse_rope_motions(rope_motions);
 
     // Determine the number of unique places the tail of the rope of length 10 visited in the example input from the question
-    let tail_positions_visited = simulate_rope_movement(rope_motion_steps, 10);
+    let tail_positions_visited = simulate_rope_movement(rope_motion_steps, 10, None);
 
     // Return the number of unique places that the tail visited
     tail_positions_visited.len()
+}
+
+// endregion
+
+// region: Rope Animation
+
+#[test]
+fn animate_rope_test() {
+    animate_rope_movements(include_str!("../inputs/larger_example").trim());
+}
+
+/// Simulate the movement of a rope so that we can animate it!
+fn animate_rope_movements(rope_motions: &str) {
+    // Get the list of steps to make and the directions to go in each
+    let rope_motion_steps = parse_rope_motions(rope_motions);
+
+    // Vector to keep track of positions so we can animate it
+    let mut rope_positions = Vec::<Vec<Position>>::new();
+
+    // Determine the number of unique places the tail of the rope of length 10 visited in the example input from the question
+    simulate_rope_movement(rope_motion_steps, 20, Some(&mut rope_positions));
+
+    // Animate the rope
+    animate_rope_positions(rope_positions);
+}
+
+/// Render the positions determined from simulating rope movements to the screen in a fun way
+fn animate_rope_positions(rope_positions: Vec<Vec<Position>>) {
+    // Find the max and min values of both x and y to figure out the dimensions of the entire screen we should render
+    let min_x = rope_positions.iter().flatten().min_by_key(|pos| pos.x).unwrap().x;
+    let max_x = rope_positions.iter().flatten().max_by_key(|pos| pos.x).unwrap().x;
+    let min_y = rope_positions.iter().flatten().min_by_key(|pos| pos.y).unwrap().y;
+    let max_y = rope_positions.iter().flatten().max_by_key(|pos| pos.y).unwrap().y;
+
+    let width = (max_x - min_x) as usize + 1;
+    let height = (max_y - min_y) as usize + 1;
+
+    let base = vec![vec!['.'; width]; height];
+
+    // Loop through each step of the motion list
+    for step_positions in rope_positions {
+        // Clear the screen
+        // print!("{}[2J", 27 as char);
+        print!("\x1B[2J\x1B[1;1H");
+
+        // Construct the new 2d array
+        let mut rope_display = base.clone();
+        for (i, knot_position) in step_positions.iter().enumerate() {
+            // Determine which character to display for this knot
+            let display_char = match i {
+                0 => 'H',
+                1..=9 => i.to_string().chars().next().unwrap(),
+                _ => '#',
+            };
+
+            // Update the character at the knot's position  
+            rope_display[(knot_position.y - min_y) as usize][(knot_position.x - min_x) as usize] = display_char;
+        }
+        // Print the new 2d array
+        println!("+{}+", vec!['-'; width].iter().collect::<String>());
+        for row in rope_display.iter().rev() {
+            println!("|{:}|", row.iter().collect::<String>());
+        }
+        println!("+{}+", vec!['-'; width].iter().collect::<String>());
+
+        // Sleep for a certian amount of time
+        thread::sleep(Duration::from_secs_f32(0.04));
+    }
+}
+
+/// Pause the program waiting for user input before continuing
+fn pause() {
+    // Wait for input...
+    stdin().read(&mut [0]).unwrap();
 }
 
 // endregion
