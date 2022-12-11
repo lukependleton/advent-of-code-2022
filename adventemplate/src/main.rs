@@ -258,7 +258,7 @@ fn create_readme(day_info: &DayInfo) -> io::Result<()> {
         let day_url_note = format!("See the question for more details: {}", day_info.day_url);
     
         // Template out the README file
-        let readme_contents = format!("# {}\n{day_url_note}", day_info.day_title);
+        let readme_contents = format!("# {}\n{day_url_note}\n", day_info.day_title);
     
         // Create the file
         fs::write(&readme_path, readme_contents)?;
