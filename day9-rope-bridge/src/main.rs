@@ -1,4 +1,4 @@
-use std::{collections::HashSet, iter, ops, thread, time::Duration, io::{stdin, Read}};
+use std::{collections::HashSet, iter::{self, repeat}, ops::{self, Range}, thread, time::Duration, io::{stdin, Read}};
 
 fn main() {
     // Read in the rope motions from the question trimming any surrounding whitespace
@@ -219,6 +219,12 @@ fn part_two(rope_motions: &str) -> usize {
 
 // region: Rope Animation
 
+/// Pause the program waiting for user input before continuing
+fn pause() {
+    // Wait for input...
+    stdin().read(&mut [0]).unwrap();
+}
+
 #[test]
 fn animate_rope_test() {
     animate_rope_movements(include_str!("../inputs/larger_example").trim());
@@ -252,6 +258,12 @@ fn animate_rope_positions(rope_positions: Vec<Vec<Position>>) {
 
     let base = vec![vec!['.'; width]; height];
 
+    // Extra animation info
+    let mut water_chunk = "~=~-".to_string();
+    let fish = "><^>".to_string();
+    let mut fish_pos = -6;
+    let mut frame = 0;
+
     // Loop through each step of the motion list
     for step_positions in rope_positions {
         // Clear the screen
@@ -276,6 +288,13 @@ fn animate_rope_positions(rope_positions: Vec<Vec<Position>>) {
         for row in rope_display.iter().rev() {
             println!("|{:}|", row.iter().collect::<String>());
         }
+
+        // * Animate bottom water line
+        let water = get_water_line(width, frame, &mut water_chunk, &fish, &mut fish_pos);
+        // Print the water line
+        println!("|{}|", water);
+        frame += 1;
+
         println!("+{}+", vec!['-'; width].iter().collect::<String>());
 
         // Sleep for a certian amount of time
@@ -283,10 +302,83 @@ fn animate_rope_positions(rope_positions: Vec<Vec<Position>>) {
     }
 }
 
-/// Pause the program waiting for user input before continuing
-fn pause() {
-    // Wait for input...
-    stdin().read(&mut [0]).unwrap();
+/// Animate the water line at the bottom with some moving water and a fish
+fn get_water_line(width: usize, frame: i32, water_chunk: &mut String, fish: &str, fish_pos: &mut i32) -> String {
+    // Create base water string using the current version of a water chunk
+    let mut water = repeat(water_chunk.chars()).flatten().take(width).collect::<String>();
+
+    // Cycle the water chunk every other frame so that it will look like it's moving next time
+    if frame % 3 == 0 {
+        let water_char = water_chunk.remove(0);
+        water_chunk.push(water_char);
+    }
+
+    // * Add the visible part of the fish to the water at its position
+    replace_water_with_visible_slice_of_object(&mut water, fish, *fish_pos);
+
+    // Update fish position every third frame
+    if frame % 3 == 0 {
+        *fish_pos += 1;
+    }
+
+    // Add rocks with splash?
+    // let mut rock = r"/\".to_string();
+    // // Add splash to the rocks
+    // // rock = rock + match (frame / 2) % 3 {
+    // //     0 => "n",
+    // //     1 => "a",
+    // //     2 => "c",
+    // //     _ => panic!("How can we get something else from a mod 3")
+    // // };
+    // replace_water_with_visible_slice_of_object(&mut water, &rock, 10);
+
+    // Return the newly constructed water line
+    water
+}
+
+/// Modifies that water String by overlaying the visible part of the object to the water String
+fn replace_water_with_visible_slice_of_object(water: &mut String, object: &str, object_pos: i32) {
+    // Example fish I used to work out this logic
+    
+    //    -4   0 2 4
+    //     | | | | |
+    //      ><^>
+
+    // Fish pos: -3
+    // Fish_full_range: -3..1
+    // fish_full_range overlap with 0..width is just the last character -> 0..1
+    // The part of the fish that we place in 0..1 is then (0 - fish_pos)..(1 - fish_pos) = 3..4 
+
+    // Get the full range that the object would take up
+    let object_full_range = object_pos..(object_pos + object.len() as i32);
+
+    // Determine the overlap of that range with the string and render the fish if it is visible
+    if let Some(overlap_range) = get_overlap_range(object_full_range, 0..(water.len() as i32)) {
+        // 
+        let fish_visible_slice_min = usize::try_from(overlap_range.start - object_pos).unwrap();
+        let fish_visible_slice_max = usize::try_from(overlap_range.end - object_pos).unwrap();
+
+        // Add the fish to the water
+        water.replace_range(
+            usize::try_from(overlap_range.start).unwrap()..usize::try_from(overlap_range.end).unwrap(),
+            &object[fish_visible_slice_min..fish_visible_slice_max]);
+    };
+}
+
+/// Returns the option of the overlap of two ranges, being None is they don't overlap
+fn get_overlap_range(range_1: Range<i32>, range_2: Range<i32>) -> Option<Range<i32>> {
+    // Get what the overlap range would be
+    let start_max = range_1.start.max(range_2.start);
+    let end_min = range_1.end.min(range_2.end);
+
+    // Check if they overlap at all
+    if start_max <= end_min {
+        // Return the overlap range
+        Some(start_max..end_min)
+    }
+    else {
+        None
+    }
 }
 
 // endregion
